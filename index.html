@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Payment Fraud Detection System</title>
+    <link rel="stylesheet" href="style.css">
+    <script>
+        // Redirect based on authentication state
+        window.addEventListener('DOMContentLoaded', () => {
+            const user = localStorage.getItem('fraud_user');
+            if (user) {
+                window.location.href = 'dashboard.html';
+            } else {
+                window.location.href = 'login.html';
+            }
+        });
+    </script>
+</head>
+<body style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: 'Inter', sans-serif;">
+    <div style="text-align: center; color: var(--text-muted);">
+        <h2>Redirecting to Digital Payment Fraud System...</h2>
+    </div>
+</body>
+</html>
