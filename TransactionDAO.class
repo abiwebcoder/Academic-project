@@ -1,0 +1,462 @@
+// Source code is decompiled from a .class file using FernFlower decompiler (from Intellij IDEA).
+package com.fraud.dao;
+
+import com.fraud.model.Transaction;
+import com.fraud.util.FraudDetector;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+public class TransactionDAO {
+   public TransactionDAO() {
+   }
+
+   public boolean addTransaction(Transaction var1) {
+      String var2 = FraudDetector.evaluateTransaction(var1.getAmount());
+      var1.setStatus(var2);
+      String var3 = "INSERT INTO transactions (sender_name, receiver_name, amount, transaction_date, status) VALUES (?, ?, ?, ?, ?)";
+
+      try {
+         Connection var4 = DBConnection.getConnection();
+
+         boolean var17;
+         label111: {
+            try {
+               PreparedStatement var5;
+               label103: {
+                  var5 = var4.prepareStatement(var3, 1);
+
+                  try {
+                     var5.setString(1, var1.getSenderName());
+                     var5.setString(2, var1.getReceiverName());
+                     var5.setDouble(3, var1.getAmount());
+                     var5.setDate(4, var1.getTransactionDate());
+                     var5.setString(5, var1.getStatus());
+                     int var6 = var5.executeUpdate();
+                     if (var6 <= 0) {
+                        break label103;
+                     }
+
+                     ResultSet var7 = var5.getGeneratedKeys();
+
+                     try {
+                        if (var7.next()) {
+                           var1.setId(var7.getInt(1));
+                        }
+                     } catch (Throwable var13) {
+                        if (var7 != null) {
+                           try {
+                              var7.close();
+                           } catch (Throwable var12) {
+                              var13.addSuppressed(var12);
+                           }
+                        }
+
+                        throw var13;
+                     }
+
+                     if (var7 != null) {
+                        var7.close();
+                     }
+
+                     var17 = true;
+                  } catch (Throwable var14) {
+                     if (var5 != null) {
+                        try {
+                           var5.close();
+                        } catch (Throwable var11) {
+                           var14.addSuppressed(var11);
+                        }
+                     }
+
+                     throw var14;
+                  }
+
+                  if (var5 != null) {
+                     var5.close();
+                  }
+                  break label111;
+               }
+
+               if (var5 != null) {
+                  var5.close();
+               }
+            } catch (Throwable var15) {
+               if (var4 != null) {
+                  try {
+                     var4.close();
+                  } catch (Throwable var10) {
+                     var15.addSuppressed(var10);
+                  }
+               }
+
+               throw var15;
+            }
+
+            if (var4 != null) {
+               var4.close();
+            }
+
+            return false;
+         }
+
+         if (var4 != null) {
+            var4.close();
+         }
+
+         return var17;
+      } catch (SQLException var16) {
+         System.err.println("Error inserting transaction: " + var16.getMessage());
+         var16.printStackTrace();
+         return false;
+      }
+   }
+
+   public List<Transaction> getAllTransactions() {
+      ArrayList var1 = new ArrayList();
+      String var2 = "SELECT id, sender_name, receiver_name, amount, transaction_date, status, created_at FROM transactions ORDER BY id DESC";
+
+      try {
+         Connection var3 = DBConnection.getConnection();
+
+         try {
+            PreparedStatement var4 = var3.prepareStatement(var2);
+
+            try {
+               ResultSet var5 = var4.executeQuery();
+
+               try {
+                  while(var5.next()) {
+                     var1.add(this.mapResultSetToTransaction(var5));
+                  }
+               } catch (Throwable var11) {
+                  if (var5 != null) {
+                     try {
+                        var5.close();
+                     } catch (Throwable var10) {
+                        var11.addSuppressed(var10);
+                     }
+                  }
+
+                  throw var11;
+               }
+
+               if (var5 != null) {
+                  var5.close();
+               }
+            } catch (Throwable var12) {
+               if (var4 != null) {
+                  try {
+                     var4.close();
+                  } catch (Throwable var9) {
+                     var12.addSuppressed(var9);
+                  }
+               }
+
+               throw var12;
+            }
+
+            if (var4 != null) {
+               var4.close();
+            }
+         } catch (Throwable var13) {
+            if (var3 != null) {
+               try {
+                  var3.close();
+               } catch (Throwable var8) {
+                  var13.addSuppressed(var8);
+               }
+            }
+
+            throw var13;
+         }
+
+         if (var3 != null) {
+            var3.close();
+         }
+      } catch (SQLException var14) {
+         System.err.println("Error fetching all transactions: " + var14.getMessage());
+         var14.printStackTrace();
+      }
+
+      return var1;
+   }
+
+   public List<Transaction> searchBySender(String var1) {
+      ArrayList var2 = new ArrayList();
+      String var3 = "SELECT id, sender_name, receiver_name, amount, transaction_date, status, created_at FROM transactions WHERE LOWER(sender_name) LIKE LOWER(?) ORDER BY id DESC";
+
+      try {
+         Connection var4 = DBConnection.getConnection();
+
+         try {
+            PreparedStatement var5 = var4.prepareStatement(var3);
+
+            try {
+               var5.setString(1, "%" + var1 + "%");
+               ResultSet var6 = var5.executeQuery();
+
+               try {
+                  while(var6.next()) {
+                     var2.add(this.mapResultSetToTransaction(var6));
+                  }
+               } catch (Throwable var12) {
+                  if (var6 != null) {
+                     try {
+                        var6.close();
+                     } catch (Throwable var11) {
+                        var12.addSuppressed(var11);
+                     }
+                  }
+
+                  throw var12;
+               }
+
+               if (var6 != null) {
+                  var6.close();
+               }
+            } catch (Throwable var13) {
+               if (var5 != null) {
+                  try {
+                     var5.close();
+                  } catch (Throwable var10) {
+                     var13.addSuppressed(var10);
+                  }
+               }
+
+               throw var13;
+            }
+
+            if (var5 != null) {
+               var5.close();
+            }
+         } catch (Throwable var14) {
+            if (var4 != null) {
+               try {
+                  var4.close();
+               } catch (Throwable var9) {
+                  var14.addSuppressed(var9);
+               }
+            }
+
+            throw var14;
+         }
+
+         if (var4 != null) {
+            var4.close();
+         }
+      } catch (SQLException var15) {
+         System.err.println("Error searching transactions by sender: " + var15.getMessage());
+         var15.printStackTrace();
+      }
+
+      return var2;
+   }
+
+   public List<Transaction> filterByStatus(String var1) {
+      ArrayList var2 = new ArrayList();
+      String var3 = "SELECT id, sender_name, receiver_name, amount, transaction_date, status, created_at FROM transactions WHERE status = ? ORDER BY id DESC";
+
+      try {
+         Connection var4 = DBConnection.getConnection();
+
+         try {
+            PreparedStatement var5 = var4.prepareStatement(var3);
+
+            try {
+               var5.setString(1, var1);
+               ResultSet var6 = var5.executeQuery();
+
+               try {
+                  while(var6.next()) {
+                     var2.add(this.mapResultSetToTransaction(var6));
+                  }
+               } catch (Throwable var12) {
+                  if (var6 != null) {
+                     try {
+                        var6.close();
+                     } catch (Throwable var11) {
+                        var12.addSuppressed(var11);
+                     }
+                  }
+
+                  throw var12;
+               }
+
+               if (var6 != null) {
+                  var6.close();
+               }
+            } catch (Throwable var13) {
+               if (var5 != null) {
+                  try {
+                     var5.close();
+                  } catch (Throwable var10) {
+                     var13.addSuppressed(var10);
+                  }
+               }
+
+               throw var13;
+            }
+
+            if (var5 != null) {
+               var5.close();
+            }
+         } catch (Throwable var14) {
+            if (var4 != null) {
+               try {
+                  var4.close();
+               } catch (Throwable var9) {
+                  var14.addSuppressed(var9);
+               }
+            }
+
+            throw var14;
+         }
+
+         if (var4 != null) {
+            var4.close();
+         }
+      } catch (SQLException var15) {
+         System.err.println("Error filtering transactions by status: " + var15.getMessage());
+         var15.printStackTrace();
+      }
+
+      return var2;
+   }
+
+   public boolean deleteTransaction(int var1) {
+      String var2 = "DELETE FROM transactions WHERE id = ?";
+
+      try {
+         Connection var3 = DBConnection.getConnection();
+
+         boolean var5;
+         try {
+            PreparedStatement var4 = var3.prepareStatement(var2);
+
+            try {
+               var4.setInt(1, var1);
+               var5 = var4.executeUpdate() > 0;
+            } catch (Throwable var9) {
+               if (var4 != null) {
+                  try {
+                     var4.close();
+                  } catch (Throwable var8) {
+                     var9.addSuppressed(var8);
+                  }
+               }
+
+               throw var9;
+            }
+
+            if (var4 != null) {
+               var4.close();
+            }
+         } catch (Throwable var10) {
+            if (var3 != null) {
+               try {
+                  var3.close();
+               } catch (Throwable var7) {
+                  var10.addSuppressed(var7);
+               }
+            }
+
+            throw var10;
+         }
+
+         if (var3 != null) {
+            var3.close();
+         }
+
+         return var5;
+      } catch (SQLException var11) {
+         System.err.println("Error deleting transaction: " + var11.getMessage());
+         var11.printStackTrace();
+         return false;
+      }
+   }
+
+   public Map<String, Integer> getStats() {
+      HashMap var1 = new HashMap();
+      var1.put("total", 0);
+      var1.put("fraud", 0);
+      var1.put("safe", 0);
+      String var2 = "SELECT   COUNT(*) as total,   SUM(CASE WHEN status = 'Fraud' THEN 1 ELSE 0 END) as fraud,   SUM(CASE WHEN status = 'Safe' THEN 1 ELSE 0 END) as safe FROM transactions";
+
+      try {
+         Connection var3 = DBConnection.getConnection();
+
+         try {
+            PreparedStatement var4 = var3.prepareStatement(var2);
+
+            try {
+               ResultSet var5 = var4.executeQuery();
+
+               try {
+                  if (var5.next()) {
+                     var1.put("total", var5.getInt("total"));
+                     var1.put("fraud", var5.getInt("fraud"));
+                     var1.put("safe", var5.getInt("safe"));
+                  }
+               } catch (Throwable var11) {
+                  if (var5 != null) {
+                     try {
+                        var5.close();
+                     } catch (Throwable var10) {
+                        var11.addSuppressed(var10);
+                     }
+                  }
+
+                  throw var11;
+               }
+
+               if (var5 != null) {
+                  var5.close();
+               }
+            } catch (Throwable var12) {
+               if (var4 != null) {
+                  try {
+                     var4.close();
+                  } catch (Throwable var9) {
+                     var12.addSuppressed(var9);
+                  }
+               }
+
+               throw var12;
+            }
+
+            if (var4 != null) {
+               var4.close();
+            }
+         } catch (Throwable var13) {
+            if (var3 != null) {
+               try {
+                  var3.close();
+               } catch (Throwable var8) {
+                  var13.addSuppressed(var8);
+               }
+            }
+
+            throw var13;
+         }
+
+         if (var3 != null) {
+            var3.close();
+         }
+      } catch (SQLException var14) {
+         System.err.println("Error fetching transaction stats: " + var14.getMessage());
+         var14.printStackTrace();
+      }
+
+      return var1;
+   }
+
+   private Transaction mapResultSetToTransaction(ResultSet var1) throws SQLException {
+      return new Transaction(var1.getInt("id"), var1.getString("sender_name"), var1.getString("receiver_name"), var1.getDouble("amount"), var1.getDate("transaction_date"), var1.getString("status"), var1.getTimestamp("created_at"));
+   }
+}
