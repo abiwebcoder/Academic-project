@@ -1,0 +1,455 @@
+// Source code is decompiled from a .class file using FernFlower decompiler (from Intellij IDEA).
+package com.fraud.server;
+
+import com.fraud.dao.TransactionDAO;
+import com.fraud.dao.UserDAO;
+import com.fraud.model.Transaction;
+import com.fraud.model.User;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
+import com.sun.net.httpserver.HttpServer;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.sql.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Executor;
+
+public class SimpleHttpServer {
+   private final int port;
+   private HttpServer server;
+   private final TransactionDAO transactionDAO;
+   private final UserDAO userDAO;
+
+   public SimpleHttpServer(int var1) {
+      this.port = var1;
+      this.transactionDAO = new TransactionDAO();
+      this.userDAO = new UserDAO();
+   }
+
+   public void start() throws IOException {
+      this.server = HttpServer.create(new InetSocketAddress(this.port), 0);
+      this.server.createContext("/api/login", new LoginHandler());
+      this.server.createContext("/api/transactions", new TransactionsHandler());
+      this.server.createContext("/api/transactions/search", new SearchHandler());
+      this.server.createContext("/api/transactions/filter", new FilterHandler());
+      this.server.createContext("/api/transactions/delete", new DeleteHandler());
+      this.server.createContext("/api/stats", new StatsHandler());
+      this.server.createContext("/", new StaticFileHandler(this));
+      this.server.setExecutor((Executor)null);
+      this.server.start();
+      System.out.println("\ud83d\ude80 Digital Payment Server is running live at http://localhost:" + this.port + "/");
+   }
+
+   public void stop() {
+      if (this.server != null) {
+         this.server.stop(0);
+      }
+
+   }
+
+   private static void sendJsonResponse(HttpExchange var0, int var1, String var2) throws IOException {
+      byte[] var3 = var2.getBytes(StandardCharsets.UTF_8);
+      var0.getResponseHeaders().set("Content-Type", "application/json; charset=UTF-8");
+      var0.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+      var0.getResponseHeaders().set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+      var0.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type");
+      if ("OPTIONS".equalsIgnoreCase(var0.getRequestMethod())) {
+         var0.sendResponseHeaders(204, -1L);
+      } else {
+         var0.sendResponseHeaders(var1, (long)var3.length);
+         OutputStream var4 = var0.getResponseBody();
+
+         try {
+            var4.write(var3);
+         } catch (Throwable var8) {
+            if (var4 != null) {
+               try {
+                  var4.close();
+               } catch (Throwable var7) {
+                  var8.addSuppressed(var7);
+               }
+            }
+
+            throw var8;
+         }
+
+         if (var4 != null) {
+            var4.close();
+         }
+
+      }
+   }
+
+   private static String readRequestBody(HttpExchange var0) throws IOException {
+      InputStream var1 = var0.getRequestBody();
+
+      String var5;
+      try {
+         ByteArrayOutputStream var2 = new ByteArrayOutputStream();
+
+         try {
+            byte[] var3 = new byte[1024];
+
+            while(true) {
+               int var4;
+               if ((var4 = var1.read(var3)) == -1) {
+                  var5 = var2.toString(StandardCharsets.UTF_8.name());
+                  break;
+               }
+
+               var2.write(var3, 0, var4);
+            }
+         } catch (Throwable var8) {
+            try {
+               var2.close();
+            } catch (Throwable var7) {
+               var8.addSuppressed(var7);
+            }
+
+            throw var8;
+         }
+
+         var2.close();
+      } catch (Throwable var9) {
+         if (var1 != null) {
+            try {
+               var1.close();
+            } catch (Throwable var6) {
+               var9.addSuppressed(var6);
+            }
+         }
+
+         throw var9;
+      }
+
+      if (var1 != null) {
+         var1.close();
+      }
+
+      return var5;
+   }
+
+   private static Map<String, String> parseQueryParams(String var0) {
+      HashMap var1 = new HashMap();
+      if (var0 != null && !var0.isEmpty()) {
+         String[] var2 = var0.split("&");
+         int var3 = var2.length;
+
+         for(int var4 = 0; var4 < var3; ++var4) {
+            String var5 = var2[var4];
+            String[] var6 = var5.split("=");
+            if (var6.length > 1) {
+               var1.put(var6[0], URLDecoder.decode(var6[1], StandardCharsets.UTF_8));
+            } else {
+               var1.put(var6[0], "");
+            }
+         }
+
+         return var1;
+      } else {
+         return var1;
+      }
+   }
+
+   private static String extractJsonValue(String var0, String var1) {
+      if (var0 == null) {
+         return null;
+      } else {
+         String var2 = "\"" + var1 + "\":";
+         int var3 = var0.indexOf(var2);
+         if (var3 == -1) {
+            return null;
+         } else {
+            int var4;
+            for(var4 = var3 + var2.length(); var4 < var0.length() && (var0.charAt(var4) == ' ' || var0.charAt(var4) == '"'); ++var4) {
+            }
+
+            int var5;
+            for(var5 = var4; var5 < var0.length() && var0.charAt(var5) != '"' && var0.charAt(var5) != ',' && var0.charAt(var5) != '}'; ++var5) {
+            }
+
+            return var0.substring(var4, var5).trim();
+         }
+      }
+   }
+
+   private class LoginHandler implements HttpHandler {
+      private LoginHandler() {
+      }
+
+      public void handle(HttpExchange var1) throws IOException {
+         if ("OPTIONS".equalsIgnoreCase(var1.getRequestMethod())) {
+            SimpleHttpServer.sendJsonResponse(var1, 204, "");
+         } else if (!"POST".equalsIgnoreCase(var1.getRequestMethod())) {
+            SimpleHttpServer.sendJsonResponse(var1, 405, "{\"error\":\"Method Not Allowed\"}");
+         } else {
+            String var2 = SimpleHttpServer.readRequestBody(var1);
+            String var3 = SimpleHttpServer.extractJsonValue(var2, "username");
+            String var4 = SimpleHttpServer.extractJsonValue(var2, "password");
+            User var5 = SimpleHttpServer.this.userDAO.validateUser(var3, var4);
+            if (var5 != null) {
+               String var6 = String.format("{\"success\":true,\"message\":\"Login successful\",\"username\":\"%s\",\"fullName\":\"%s\"}", var5.getUsername(), var5.getFullName());
+               SimpleHttpServer.sendJsonResponse(var1, 200, var6);
+            } else {
+               SimpleHttpServer.sendJsonResponse(var1, 401, "{\"success\":false,\"message\":\"Invalid username or password\"}");
+            }
+
+         }
+      }
+   }
+
+   private class TransactionsHandler implements HttpHandler {
+      private TransactionsHandler() {
+      }
+
+      public void handle(HttpExchange var1) throws IOException {
+         String var2 = var1.getRequestMethod();
+         if ("OPTIONS".equalsIgnoreCase(var2)) {
+            SimpleHttpServer.sendJsonResponse(var1, 204, "");
+         } else {
+            if ("GET".equalsIgnoreCase(var2)) {
+               List var15 = SimpleHttpServer.this.transactionDAO.getAllTransactions();
+               StringBuilder var16 = new StringBuilder("[");
+
+               for(int var17 = 0; var17 < var15.size(); ++var17) {
+                  var16.append(((Transaction)var15.get(var17)).toJson());
+                  if (var17 < var15.size() - 1) {
+                     var16.append(",");
+                  }
+               }
+
+               var16.append("]");
+               SimpleHttpServer.sendJsonResponse(var1, 200, var16.toString());
+            } else if ("POST".equalsIgnoreCase(var2)) {
+               String var3 = SimpleHttpServer.readRequestBody(var1);
+               String var4 = SimpleHttpServer.extractJsonValue(var3, "senderName");
+               String var5 = SimpleHttpServer.extractJsonValue(var3, "receiverName");
+               String var6 = SimpleHttpServer.extractJsonValue(var3, "amount");
+               String var7 = SimpleHttpServer.extractJsonValue(var3, "transactionDate");
+               if (var4 == null || var5 == null || var6 == null || var7 == null) {
+                  SimpleHttpServer.sendJsonResponse(var1, 400, "{\"success\":false,\"message\":\"Missing required transaction fields\"}");
+                  return;
+               }
+
+               try {
+                  double var8 = Double.parseDouble(var6);
+                  Date var10 = Date.valueOf(var7);
+                  Transaction var11 = new Transaction(var4, var5, var8, var10, "");
+                  boolean var12 = SimpleHttpServer.this.transactionDAO.addTransaction(var11);
+                  if (var12) {
+                     String var13 = String.format("{\"success\":true,\"message\":\"Transaction recorded successfully\",\"transaction\":%s}", var11.toJson());
+                     SimpleHttpServer.sendJsonResponse(var1, 201, var13);
+                  } else {
+                     SimpleHttpServer.sendJsonResponse(var1, 500, "{\"success\":false,\"message\":\"Database insertion failed\"}");
+                  }
+               } catch (Exception var14) {
+                  SimpleHttpServer.sendJsonResponse(var1, 400, "{\"success\":false,\"message\":\"Invalid payload data format: " + var14.getMessage() + "\"}");
+               }
+            } else {
+               SimpleHttpServer.sendJsonResponse(var1, 405, "{\"error\":\"Method Not Allowed\"}");
+            }
+
+         }
+      }
+   }
+
+   private class SearchHandler implements HttpHandler {
+      private SearchHandler() {
+      }
+
+      public void handle(HttpExchange var1) throws IOException {
+         if ("OPTIONS".equalsIgnoreCase(var1.getRequestMethod())) {
+            SimpleHttpServer.sendJsonResponse(var1, 204, "");
+         } else {
+            Map var2 = SimpleHttpServer.parseQueryParams(var1.getRequestURI().getQuery());
+            String var3 = (String)var2.getOrDefault("sender", "");
+            List var4 = SimpleHttpServer.this.transactionDAO.searchBySender(var3);
+            StringBuilder var5 = new StringBuilder("[");
+
+            for(int var6 = 0; var6 < var4.size(); ++var6) {
+               var5.append(((Transaction)var4.get(var6)).toJson());
+               if (var6 < var4.size() - 1) {
+                  var5.append(",");
+               }
+            }
+
+            var5.append("]");
+            SimpleHttpServer.sendJsonResponse(var1, 200, var5.toString());
+         }
+      }
+   }
+
+   private class FilterHandler implements HttpHandler {
+      private FilterHandler() {
+      }
+
+      public void handle(HttpExchange var1) throws IOException {
+         if ("OPTIONS".equalsIgnoreCase(var1.getRequestMethod())) {
+            SimpleHttpServer.sendJsonResponse(var1, 204, "");
+         } else {
+            Map var2 = SimpleHttpServer.parseQueryParams(var1.getRequestURI().getQuery());
+            String var3 = (String)var2.getOrDefault("status", "All");
+            List var4;
+            if (!"All".equalsIgnoreCase(var3) && !var3.isEmpty()) {
+               var4 = SimpleHttpServer.this.transactionDAO.filterByStatus(var3);
+            } else {
+               var4 = SimpleHttpServer.this.transactionDAO.getAllTransactions();
+            }
+
+            StringBuilder var5 = new StringBuilder("[");
+
+            for(int var6 = 0; var6 < var4.size(); ++var6) {
+               var5.append(((Transaction)var4.get(var6)).toJson());
+               if (var6 < var4.size() - 1) {
+                  var5.append(",");
+               }
+            }
+
+            var5.append("]");
+            SimpleHttpServer.sendJsonResponse(var1, 200, var5.toString());
+         }
+      }
+   }
+
+   private class DeleteHandler implements HttpHandler {
+      private DeleteHandler() {
+      }
+
+      public void handle(HttpExchange var1) throws IOException {
+         String var2 = var1.getRequestMethod();
+         if ("OPTIONS".equalsIgnoreCase(var2)) {
+            SimpleHttpServer.sendJsonResponse(var1, 204, "");
+         } else {
+            Map var3 = SimpleHttpServer.parseQueryParams(var1.getRequestURI().getQuery());
+            String var4 = (String)var3.get("id");
+            if (var4 == null) {
+               String var5 = SimpleHttpServer.readRequestBody(var1);
+               var4 = SimpleHttpServer.extractJsonValue(var5, "id");
+            }
+
+            if (var4 == null) {
+               SimpleHttpServer.sendJsonResponse(var1, 400, "{\"success\":false,\"message\":\"Transaction ID is required\"}");
+            } else {
+               try {
+                  int var8 = Integer.parseInt(var4);
+                  boolean var6 = SimpleHttpServer.this.transactionDAO.deleteTransaction(var8);
+                  if (var6) {
+                     SimpleHttpServer.sendJsonResponse(var1, 200, "{\"success\":true,\"message\":\"Transaction deleted successfully\"}");
+                  } else {
+                     SimpleHttpServer.sendJsonResponse(var1, 404, "{\"success\":false,\"message\":\"Transaction ID not found\"}");
+                  }
+               } catch (NumberFormatException var7) {
+                  SimpleHttpServer.sendJsonResponse(var1, 400, "{\"success\":false,\"message\":\"Invalid Transaction ID format\"}");
+               }
+
+            }
+         }
+      }
+   }
+
+   private class StatsHandler implements HttpHandler {
+      private StatsHandler() {
+      }
+
+      public void handle(HttpExchange var1) throws IOException {
+         if ("OPTIONS".equalsIgnoreCase(var1.getRequestMethod())) {
+            SimpleHttpServer.sendJsonResponse(var1, 204, "");
+         } else {
+            Map var2 = SimpleHttpServer.this.transactionDAO.getStats();
+            String var3 = String.format("{\"total\":%d,\"fraud\":%d,\"safe\":%d}", var2.get("total"), var2.get("fraud"), var2.get("safe"));
+            SimpleHttpServer.sendJsonResponse(var1, 200, var3);
+         }
+      }
+   }
+
+   private class StaticFileHandler implements HttpHandler {
+      private StaticFileHandler(final SimpleHttpServer var1) {
+      }
+
+      public void handle(HttpExchange var1) throws IOException {
+         String var2 = var1.getRequestURI().getPath();
+         if (var2.equals("/")) {
+            var2 = "/login.html";
+         }
+
+         Path var3 = Paths.get("." + var2).normalize();
+         if (!Files.exists(var3, new LinkOption[0]) || Files.isDirectory(var3, new LinkOption[0])) {
+            var3 = Paths.get(var3.getFileName().toString());
+         }
+
+         String var4;
+         if (Files.exists(var3, new LinkOption[0]) && !Files.isDirectory(var3, new LinkOption[0])) {
+            var4 = "text/html";
+            String var14 = var3.getFileName().toString();
+            if (var14.endsWith(".css")) {
+               var4 = "text/css";
+            } else if (var14.endsWith(".js")) {
+               var4 = "application/javascript";
+            } else if (var14.endsWith(".json")) {
+               var4 = "application/json";
+            } else if (var14.endsWith(".png")) {
+               var4 = "image/png";
+            } else if (var14.endsWith(".jpg") || var14.endsWith(".jpeg")) {
+               var4 = "image/jpeg";
+            }
+
+            byte[] var6 = Files.readAllBytes(var3);
+            var1.getResponseHeaders().set("Content-Type", var4);
+            var1.sendResponseHeaders(200, (long)var6.length);
+            OutputStream var7 = var1.getResponseBody();
+
+            try {
+               var7.write(var6);
+            } catch (Throwable var13) {
+               if (var7 != null) {
+                  try {
+                     var7.close();
+                  } catch (Throwable var11) {
+                     var13.addSuppressed(var11);
+                  }
+               }
+
+               throw var13;
+            }
+
+            if (var7 != null) {
+               var7.close();
+            }
+         } else {
+            var4 = "404 Not Found";
+            var1.sendResponseHeaders(404, (long)var4.length());
+            OutputStream var5 = var1.getResponseBody();
+
+            try {
+               var5.write(var4.getBytes());
+            } catch (Throwable var12) {
+               if (var5 != null) {
+                  try {
+                     var5.close();
+                  } catch (Throwable var10) {
+                     var12.addSuppressed(var10);
+                  }
+               }
+
+               throw var12;
+            }
+
+            if (var5 != null) {
+               var5.close();
+            }
+         }
+
+      }
+   }
+}
