@@ -1,0 +1,13 @@
+// Source code is decompiled from a .class file using FernFlower decompiler (from Intellij IDEA).
+package com.fraud.util;
+
+public class FraudDetector {
+   public static final double FRAUD_THRESHOLD = 50000.0;
+
+   public FraudDetector() {
+   }
+
+   public static String evaluateTransaction(double var0) {
+      return var0 > 50000.0 ? "Fraud" : "Safe";
+   }
+}
