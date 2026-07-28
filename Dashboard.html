@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Digital Payment Fraud Detection System</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Top Navbar -->
+    <header class="navbar">
+        <a href="dashboard.html" class="brand">
+            <div class="brand-icon">
+                <i class="fa-solid fa-shield-halved"></i>
+            </div>
+            <span class="brand-title">FraudGuard AI</span>
+        </a>
+        
+        <div class="user-profile">
+            <div class="user-badge">
+                <i class="fa-solid fa-user-shield" style="color: var(--primary);"></i>
+                <span id="userFullName">System Administrator</span>
+            </div>
+            <button id="btnLogout" class="btn-logout">
+                <i class="fa-solid fa-right-from-bracket"></i> Logout
+            </button>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Summary Metric Cards (Total, Safe, Fraud) -->
+        <section class="kpi-grid">
+            <div class="kpi-card kpi-total">
+                <div class="kpi-info">
+                    <h4>Total Transactions</h4>
+                    <div id="statTotal" class="kpi-value">0</div>
+                </div>
+                <div class="kpi-icon">
+                    <i class="fa-solid fa-list-check"></i>
+                </div>
+            </div>
+
+            <div class="kpi-card kpi-safe">
+                <div class="kpi-info">
+                    <h4>Safe Transactions</h4>
+                    <div id="statSafe" class="kpi-value" style="color: var(--safe);">0</div>
+                </div>
+                <div class="kpi-icon">
+                    <i class="fa-solid fa-circle-check"></i>
+                </div>
+            </div>
+
+            <div class="kpi-card kpi-fraud">
+                <div class="kpi-info">
+                    <h4>Fraud Alerts</h4>
+                    <div id="statFraud" class="kpi-value" style="color: var(--fraud);">0</div>
+                </div>
+                <div class="kpi-icon">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Workspace Grid: Add Transaction Form & Transaction Table -->
+        <section class="dashboard-grid">
+            <!-- Left Side: Transaction Entry Form -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h3 class="panel-title"><i class="fa-solid fa-plus-circle" style="color: var(--primary);"></i> New Transaction</h3>
+                </div>
+
+                <form id="transactionForm">
+                    <div class="form-group">
+                        <label for="senderName"><i class="fa-solid fa-user"></i> Sender Name</label>
+                        <input type="text" id="senderName" class="form-control" placeholder="e.g. John Doe" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="receiverName"><i class="fa-solid fa-user-check"></i> Receiver Name</label>
+                        <input type="text" id="receiverName" class="form-control" placeholder="e.g. Alice Smith" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="amount"><i class="fa-solid fa-dollar-sign"></i> Amount ($)</label>
+                        <input type="number" id="amount" class="form-control" placeholder="e.g. 55000.00" step="0.01" min="0.01" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="transactionDate"><i class="fa-solid fa-calendar-days"></i> Transaction Date</label>
+                        <input type="date" id="transactionDate" class="form-control" required>
+                    </div>
+
+                    <!-- Dynamic Live Fraud Evaluation Status Preview -->
+                    <div id="fraudPreview" class="fraud-preview-box">
+                        <span>Fraud Check Logic:</span>
+                        <span id="previewBadge" class="badge badge-safe"><i class="fa-solid fa-shield"></i> Safe (&le; $50,000)</span>
+                    </div>
+
+                    <button type="submit" id="btnSubmitTx" class="btn-primary" style="margin-top: 1.25rem;">
+                        <i class="fa-solid fa-paper-plane"></i> Save & Detect Fraud
+                    </button>
+                </form>
+            </div>
+
+            <!-- Right Side: Transactions Table & Filters -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h3 class="panel-title"><i class="fa-solid fa-table-list" style="color: var(--primary);"></i> Transaction Ledger</h3>
+                    <button id="btnRefresh" class="btn-delete" style="background: rgba(99, 102, 241, 0.1); color: var(--primary); border-color: rgba(99, 102, 241, 0.3);">
+                        <i class="fa-solid fa-rotate"></i> Refresh
+                    </button>
+                </div>
+
+                <!-- Table Filter & Search Controls -->
+                <div class="table-toolbar">
+                    <!-- Search by Sender Name -->
+                    <div class="search-box">
+                        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                        <input type="text" id="searchInput" class="form-control" placeholder="Search by Sender Name...">
+                    </div>
+
+                    <!-- Filter by Fraud/Safe Status -->
+                    <div class="filter-box">
+                        <label for="statusFilter" style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600;"><i class="fa-solid fa-filter"></i> Filter:</label>
+                        <select id="statusFilter" class="form-control">
+                            <option value="All">All Transactions</option>
+                            <option value="Safe">Safe Only</option>
+                            <option value="Fraud">Fraud Only</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Transactions Data Table -->
+                <div class="table-responsive">
+                    <table class="custom-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Sender Name</th>
+                                <th>Receiver Name</th>
+                                <th>Amount ($)</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transactionTableBody">
+                            <!-- Dynamically Populated via script.js -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="alert-toast">
+        <i id="toastIcon" class="fa-solid fa-circle-info"></i>
+        <span id="toastMessage">Notification message</span>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
