@@ -1,0 +1,169 @@
+// Source code is decompiled from a .class file using FernFlower decompiler (from Intellij IDEA).
+package com.fraud;
+
+import com.fraud.dao.DBConnection;
+import com.fraud.dao.TransactionDAO;
+import com.fraud.model.Transaction;
+import com.fraud.server.SimpleHttpServer;
+import com.fraud.util.FraudDetector;
+import java.io.PrintStream;
+import java.sql.Date;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Scanner;
+
+public class Main {
+   private static final int PORT = 8080;
+
+   public Main() {
+   }
+
+   public static void main(String[] var0) {
+      printBanner();
+      System.out.println("\ud83d\udd0d Testing MySQL Database Connection...");
+      boolean var1 = DBConnection.testConnection();
+      if (var1) {
+         System.out.println("✅ Database connection established successfully! Connected to 'frauddb'.");
+      } else {
+         System.err.println("⚠️ Warning: Could not connect to MySQL 'frauddb'.");
+         System.err.println("\ud83d\udc49 Please ensure MySQL service is running on localhost:3306 and 'frauddb.sql' has been executed.");
+         System.err.println("\ud83d\udc49 Default Credentials - User: root, Password: password (Configure in DBConnection.java if needed).");
+      }
+
+      SimpleHttpServer var2 = new SimpleHttpServer(8080);
+
+      try {
+         var2.start();
+         System.out.println("\n\ud83c\udf10 Web Dashboard URL: http://localhost:8080/login.html");
+         System.out.println("\ud83d\udd11 Default Login Credentials -> Username: admin | Password: password123");
+      } catch (Exception var12) {
+         System.err.println("❌ Failed to start HTTP Server on port 8080: " + var12.getMessage());
+      }
+
+      System.out.println("\n==================================================");
+      System.out.println("  CLI MODE ACTIVE - Type numbers below or interact via Browser");
+      System.out.println("==================================================");
+      Scanner var3 = new Scanner(System.in);
+      TransactionDAO var4 = new TransactionDAO();
+
+      while(true) {
+         System.out.println("\n--- MAIN MENU ---");
+         System.out.println("1. View All Transactions");
+         System.out.println("2. Add New Transaction");
+         System.out.println("3. Search Transactions by Sender");
+         System.out.println("4. Filter Transactions by Status (Fraud/Safe)");
+         System.out.println("5. Delete Transaction");
+         System.out.println("6. View Dashboard Statistics");
+         System.out.println("7. Exit Server & CLI");
+         System.out.print("Select an option (1-7): ");
+         switch (var3.nextLine().trim()) {
+            case "1":
+               displayTransactions(var4.getAllTransactions());
+               break;
+            case "2":
+               addNewTransactionCLI(var3, var4);
+               break;
+            case "3":
+               System.out.print("Enter Sender Name to search: ");
+               String var8 = var3.nextLine().trim();
+               displayTransactions(var4.searchBySender(var8));
+               break;
+            case "4":
+               System.out.print("Enter status to filter (Fraud/Safe): ");
+               String var9 = var3.nextLine().trim();
+               displayTransactions(var4.filterByStatus(var9));
+               break;
+            case "5":
+               System.out.print("Enter Transaction ID to delete: ");
+
+               try {
+                  int var13 = Integer.parseInt(var3.nextLine().trim());
+                  if (var4.deleteTransaction(var13)) {
+                     System.out.println("✅ Transaction #" + var13 + " deleted successfully!");
+                  } else {
+                     System.out.println("❌ Transaction ID not found or deletion failed.");
+                  }
+               } catch (NumberFormatException var11) {
+                  System.out.println("❌ Invalid ID format.");
+               }
+               break;
+            case "6":
+               Map var10 = var4.getStats();
+               System.out.println("\n\ud83d\udcca --- DASHBOARD SUMMARY STATISTICS ---");
+               System.out.println("Total Transactions : " + String.valueOf(var10.get("total")));
+               System.out.println("Fraud Transactions : " + String.valueOf(var10.get("fraud")));
+               System.out.println("Safe Transactions  : " + String.valueOf(var10.get("safe")));
+               break;
+            case "7":
+               System.out.println("Shutting down Digital Payment Server... Goodbye!");
+               var2.stop();
+               var3.close();
+               System.exit(0);
+               break;
+            default:
+               System.out.println("❌ Invalid selection. Please enter a number between 1 and 7.");
+         }
+      }
+   }
+
+   private static void addNewTransactionCLI(Scanner var0, TransactionDAO var1) {
+      try {
+         System.out.print("Enter Sender Name: ");
+         String var2 = var0.nextLine().trim();
+         System.out.print("Enter Receiver Name: ");
+         String var3 = var0.nextLine().trim();
+         System.out.print("Enter Amount (e.g. 55000.00): ");
+         double var4 = Double.parseDouble(var0.nextLine().trim());
+         System.out.print("Enter Transaction Date (YYYY-MM-DD) [Leave blank for Today]: ");
+         String var6 = var0.nextLine().trim();
+         Date var7;
+         if (var6.isEmpty()) {
+            var7 = new Date(System.currentTimeMillis());
+         } else {
+            var7 = Date.valueOf(var6);
+         }
+
+         String var8 = FraudDetector.evaluateTransaction(var4);
+         Transaction var9 = new Transaction(var2, var3, var4, var7, var8);
+         boolean var10 = var1.addTransaction(var9);
+         if (var10) {
+            PrintStream var10000 = System.out;
+            int var10001 = var9.getId();
+            var10000.println("✅ Transaction created successfully! ID: #" + var10001 + " | Status: " + var9.getStatus());
+            if ("Fraud".equals(var9.getStatus())) {
+               System.out.println("\ud83d\udea8 WARNING: Transaction flagged as FRAUD (Amount > 50,000)");
+            }
+         } else {
+            System.out.println("❌ Failed to save transaction to database.");
+         }
+      } catch (Exception var11) {
+         System.out.println("❌ Error processing input: " + var11.getMessage());
+      }
+
+   }
+
+   private static void displayTransactions(List<Transaction> var0) {
+      if (var0.isEmpty()) {
+         System.out.println("ℹ️ No transactions found.");
+      } else {
+         System.out.println("\n-----------------------------------------------------------------------------------------");
+         System.out.printf("%-6s | %-18s | %-18s | %-12s | %-12s | %-8s\n", "ID", "Sender Name", "Receiver Name", "Amount ($)", "Date", "Status");
+         System.out.println("-----------------------------------------------------------------------------------------");
+         Iterator var1 = var0.iterator();
+
+         while(var1.hasNext()) {
+            Transaction var2 = (Transaction)var1.next();
+            System.out.printf("%-6d | %-18s | %-18s | %-12.2f | %-12s | %-8s\n", var2.getId(), var2.getSenderName(), var2.getReceiverName(), var2.getAmount(), var2.getTransactionDate(), var2.getStatus());
+         }
+
+         System.out.println("-----------------------------------------------------------------------------------------");
+      }
+   }
+
+   private static void printBanner() {
+      System.out.println("===============================================================");
+      System.out.println("   \ud83d\udcb3 DIGITAL PAYMENT FRAUD DETECTION SYSTEM (PURE JAVA + JDBC)");
+      System.out.println("===============================================================");
+   }
+}
